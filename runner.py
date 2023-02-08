@@ -1,99 +1,89 @@
 import cv2
-import sys
-import utility
+import utilz
+import imgprocessing as imp
 import numpy as np
-from PySide6.QtWidgets import QApplication, QFileDialog
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+import os
 
-#file selector
-# app = QApplication()
-# window = QFileDialog()
-# file_path, _ = window.getOpenFileName()
-# file_path = utility.path_processing(file_path)
-# print(f'got file path = {file_path}')
+print(f'openCV package version: {cv2.__version__}')
+data_path = utilz.path_processing('E:\git\GutMotility\data\Control_7 dpf')
+file_list = os.listdir(data_path)
+
+for video_path in file_list:
+    src_path = f'{data_path}/{video_path}'
+    save_path = utilz.path_processing
 
 
-# cap = cv2.VideoCapture(file_path)
-cap = cv2.VideoCapture('E:/git/GutMotility/data/Control_7 dpf/Control_7dpf_03.mp4')
-if not cap.isOpened():
-    print('Video open failed!')
-    sys.exit()
+    capture = cv2.VideoCapture(cv2.samples.findFileOrKeep(src_path))
+    if not capture.isOpened():
+        print(f'Unable to open: {src_path}')
+        exit(0)
+    fps = capture.get(cv2.CAP_PROP_FPS)
+    delay = int(1000/fps)
 
-fps = cap.get(cv2.CAP_PROP_FPS) 
-delay = int(1000/fps)
-print(f'fps = {fps}, delay = {delay}')
 
-# extracting the first frame 
-ret, back = cap.read()
-if not ret:
-    print('Background image registration failed!')
-    sys.exit()
+    ret, frame = capture.read()
+    p_x, p_y, w, h = cv2.selectROI(frame)
+    cv2.destroyAllWindows()
 
-cx, cy, cw, ch = cv2.selectROI(back)
+# video writer cfg
+# fourcc = cv2.VideoWriter_fourcc('D','I','V','X')
+# writer = cv2.VideoWriter(f'{algorithm}_output.avi', fourcc, fps, (1920,800), isColor=False)
+# origin = cv2.VideoWriter(f'_src.avi', fourcc, fps, (1920,800), isColor=False)
 
-back = cv2.cvtColor(back, cv2.COLOR_BGR2GRAY)
-mask = np.zeros_like(back)
-ROI  = cv2.rectangle(mask, (cx, cy, cw, ch), 1, -1, cv2.LINE_AA)
+    # background substraction algorithm
+    algorithm = 'knn'
+    model = imp.BgSub_model(algorithm) 
 
-back = cv2.GaussianBlur(back, (0, 0), 1.0)
-back = back * ROI
+    total_frame_number = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
-prev = back
-while True:
-    ret, frame = cap.read()
-    
-    if not ret:
-        break
-    
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (0, 0), 1.0)
-    gray = gray * ROI
-    
 
-    diff = cv2.absdiff(gray, back)
-    _, binary = cv2.threshold(diff, 20, 255, cv2.THRESH_BINARY)
-    
-    cnt, _, stats, _ = cv2.connectedComponentsWithStats(binary)
-    crop = binary[cy:cy+ch, cx:cx+cw] # shape = (y, x)
+    width, height = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    y_stmap = np.empty((h, 0), np.float64)
+    x_stmap = np.empty((0, w), np.float64)
 
-    y_sum = np.sum(diff, axis=0)
-    x_sum = np.sum(diff, axis=1)
-    
-    for i in range(1, cnt):
-        x, y, w, h, s = stats[i]
+    # start = utilz.get_time()
+
+    while True:
+        ret, frame = capture.read() # (1080, 1920, 3)
+        if frame is None:
+            break
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        frame = frame[p_y:p_y+h, p_x:p_x+w]
+        # frame = frame * mask2[p_y:p_y+h, p_x:p_x+w]
+
+        # utilz.showInMovedWindow('frame', frame, 1000, 600)
+        # origin.write(frame)
+
+        # model-based background substraction
+        fgMask = model.operate(frame)
+        # cv2.putText(fgMask, utilz.calc_time_by_sec(start), (50, 100),
+        #            cv2.FONT_HERSHEY_SIMPLEX, 3, (255,255,255))
+        # utilz.showInMovedWindow('fgMask', fgMask, 100, 100)
+        # writer.write(fgMask)
+
         
-        if s < 100:
-            continue
-            
-        cv2.rectangle(frame, (x, y, w, h), (0, 0, 255), 2)
 
-    
-    
-    
-    utility.showInMovedWindow('frame', frame, 0, 0)
-    utility.showInMovedWindow('mask', crop, frame.shape[1], 0)
-    utility.showInMovedWindow('diff', diff+50, 0, 0)
-
-    
-
-    if cv2.waitKey(delay) == 27:
-        break
-
-# fig, ax = plt.subplots()
+        x_stmap = imp.make_STmap(x_stmap, fgMask, dim=0)
+        y_stmap = imp.make_STmap(y_stmap, fgMask, dim=1)
+        
+        # keyboard = cv2.waitKey(delay)
+        # if keyboard == 'q' or keyboard == 27:
+        #     break
 
 
-# y = []
-# line, = plt.plot([])
-
-# def update(frame):
-#     y.append(frame)
-#     line.set_date(y)
-#     return line,
-
-# ani = animation.FuncAnimation(fig, update, frames=x_sum)
-# plt.show()
+    x_stmap = x_stmap.astype(np.uint8)
+    y_stmap = y_stmap.astype(np.uint8)
 
 
-cap.release()
-cv2.destroyAllWindows()
+
+    x_stmap = cv2.equalizeHist(x_stmap)
+    y_stmap = cv2.equalizeHist(y_stmap)
+
+    video_name = video_path.split('.')[0]
+    cv2.imwrite(f'E:/git/GutMotility/out/img/{video_name}_BS_x_stmap.png', x_stmap)
+    cv2.imwrite(f'E:/git/GutMotility/out/img/{video_name}_BS_y_stmap.png', y_stmap)
+    capture.release()
+    # writer.release()
+    # origin.release()
+    cv2.destroyAllWindows()
