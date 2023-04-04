@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 print(f'openCV package version: {cv2.__version__}')
-data_path = utilz.path_processing('E:\git\GutMotility\data\Control_7 dpf')
+data_path = utilz.path_processing('D:\git\GutMotility\data\Control_7 dpf')
 file_list = os.listdir(data_path)
 
 for video_path in file_list:
@@ -52,14 +52,14 @@ for video_path in file_list:
         frame = frame[p_y:p_y+h, p_x:p_x+w]
         # frame = frame * mask2[p_y:p_y+h, p_x:p_x+w]
 
-        # utilz.showInMovedWindow('frame', frame, 1000, 600)
+        utilz.showInMovedWindow('frame', frame, 1000, 600)
         # origin.write(frame)
 
         # model-based background substraction
         fgMask = model.operate(frame)
         # cv2.putText(fgMask, utilz.calc_time_by_sec(start), (50, 100),
         #            cv2.FONT_HERSHEY_SIMPLEX, 3, (255,255,255))
-        # utilz.showInMovedWindow('fgMask', fgMask, 100, 100)
+        utilz.showInMovedWindow('fgMask', fgMask, 100, 100)
         # writer.write(fgMask)
 
         
@@ -67,12 +67,12 @@ for video_path in file_list:
         x_stmap = imp.make_STmap(x_stmap, fgMask, dim=0)
         y_stmap = imp.make_STmap(y_stmap, fgMask, dim=1)
         
-        # keyboard = cv2.waitKey(delay)
-        # if keyboard == 'q' or keyboard == 27:
-        #     break
+        keyboard = cv2.waitKey(delay)
+        if keyboard == 'q' or keyboard == 27:
+            break
 
 
-    x_stmap = x_stmap.astype(np.uint8)
+    x_stmap = x_stmap.astype(np.uint8) 
     y_stmap = y_stmap.astype(np.uint8)
 
 
@@ -81,8 +81,8 @@ for video_path in file_list:
     y_stmap = cv2.equalizeHist(y_stmap)
 
     video_name = video_path.split('.')[0]
-    cv2.imwrite(f'E:/git/GutMotility/out/img/{video_name}_BS_x_stmap.png', x_stmap)
-    cv2.imwrite(f'E:/git/GutMotility/out/img/{video_name}_BS_y_stmap.png', y_stmap)
+    cv2.imwrite(f'D:/git/GutMotility/out/img/{video_name}_BS_x_stmap.png', x_stmap)
+    cv2.imwrite(f'D:/git/GutMotility/out/img/{video_name}_BS_y_stmap.png', y_stmap)
     capture.release()
     # writer.release()
     # origin.release()
